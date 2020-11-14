@@ -1,1 +1,4 @@
 # KDoIJNoSOfQuEGWO
+
+
+Prediction and segmentation
