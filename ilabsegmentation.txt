@@ -1,0 +1,154 @@
+
+import pandas as pd
+import numpy as np
+pd.set_option("display.max_columns",100)
+pd.set_option("display.max_rows",1000)
+pd.set_option("display.width",10000)
+dfs = pd.read_csv("C:/Users/kamur/Desktop/termdepositcase/term-deposit-marketing-2020.csv", sep=",")
+
+
+print(dfs.describe())  #check numerical data
+import matplotlib.pyplot as plt
+dfs.housing.value_counts().plot.bar() # # of customers not subscribed is very high
+dfs['housing'].value_counts()
+plt.legend()
+plt.title('Housing Distribution')
+dfs.housing.count()
+
+#removing unknown lines as their quantities are small
+dfs = dfs[dfs.education != 'unknown']
+dfs = dfs[dfs.job != 'unknown']
+# print(df.education.value_counts())
+
+dfs.drop('contact', axis=1, inplace=True) #I removed contact variable as most of values are unknown for this variable
+
+binaryvariables =  ['default', 'housing', 'loan', 'y']
+def binary_map(x):
+    return x.map({'yes': 1, "no": 0})
+print(dfs[['age','balance','duration','campaign']].groupby(dfs['housing']).mean())
+print(dfs[['default', 'housing', 'loan', 'y','marital','education','month']].groupby(dfs['housing']).count())
+
+print(pd.crosstab(dfs['default'],dfs['housing']).apply(lambda r: r/r.sum(), axis=1)) #default no
+print(pd.crosstab(dfs['loan'],dfs['housing']).apply(lambda r: r/r.sum(), axis=1)) #
+print(pd.crosstab(dfs['y'],dfs['housing']).apply(lambda r: r/r.sum(), axis=1)) #y no
+print(pd.crosstab(dfs['marital'],dfs['housing']).apply(lambda r: r/r.sum(), axis=1)) #single and married
+print(pd.crosstab(dfs['education'],dfs['housing']).apply(lambda r: r/r.sum(), axis=1)) # primary and secondary
+print(pd.crosstab(dfs['month'],dfs['housing']).apply(lambda r: r/r.sum(), axis=1)) #april and may
+
+#I thought that customers already have house can do investment more as they already done investment and can do more. When I checked housing distribution among other variables,I would focus on  customers don't have credit card, have not subscribed any deposit yet, single or married, graduated from primary or secondary school.
+
+
+
+
+
+#DECISION TREE SEGMENTATION
+#Apart from that, I also imlemented decision tree for segmentation but unfortunately impurity in the nodes were high, that is why I did not evaluated results of below models
+
+dfs[binaryvariables] = dfs[binaryvariables].apply(binary_map)
+dfs['month'].replace({'jan': 1, "feb": 2,"mar": 3,"apr": 4,"may": 5,"jun": 6,"jul": 7,"aug": 8,"sep": 9,"oct": 10,"nov": 11,"dec": 12},inplace=True)
+
+from sklearn import preprocessing
+lb_en  = preprocessing.LabelEncoder()
+dfs['job'] = lb_en.fit_transform(dfs['job'])
+dfs['marital'] = lb_en.fit_transform(dfs['marital'])
+dfs['education'] = lb_en.fit_transform(dfs['education'])
+# df['y'].plot(kind='hist')
+# plt.show()
+
+
+categoricalvariables=['default', 'housing', 'loan', 'y','marital','education','contact','month']
+binaryvariables =  ['default', 'housing', 'loan', 'y']
+numericvariables=['age','balance','duration','campaign']
+
+from scipy.stats import chi2_contingency
+stat, p, dof, expected = chi2_contingency(pd.crosstab(dfs['education'],dfs['housing']))
+print("education",stat,p)  #dependent
+
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(dfs['marital'],dfs['housing']))
+print("marital",stat,p)  #independent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(dfs['default'],dfs['housing']))
+print("default",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(dfs['loan'],dfs['housing']))
+print("loan",stat,p)  #independent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(dfs['y'],dfs['housing']))
+print("y",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(dfs['month'],dfs['housing']))
+print("month",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(dfs['job'],dfs['housing']))
+print("job",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(dfs['day'],dfs['housing']))
+print("day",stat,p)  #dependent
+
+
+from scipy import stats
+print('age',stats.pointbiserialr(dfs['age'],dfs['housing']))  #significant correlation
+print('balance',stats.pointbiserialr(dfs['balance'],dfs['housing']))  #significant correlation
+print('duration',stats.pointbiserialr(dfs['duration'],dfs['housing']))  #significant correlation
+print('campaign',stats.pointbiserialr(dfs['campaign'],dfs['housing']))  #significant correlation
+
+dfs.drop('marital', axis=1, inplace=True) #I removed marital variable due to insignificance
+dfs.drop('loan', axis=1, inplace=True) #I removed loan variable due to insignificance
+
+
+
+
+#seperating independent variables and dependent variable
+Xtree = dfs.drop('housing', axis = 1)
+ytree=dfs['housing']
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+X_traintree, X_testtree, y_traintree, y_testtree = train_test_split(Xtree, ytree, test_size=0.3, random_state=0)
+
+ginitree = DecisionTreeClassifier(criterion="gini",
+                                  random_state=0,max_depth=3
+                                )
+
+# Performing training
+ginitree.fit(X_traintree, y_traintree)
+y_predtree = ginitree.predict(X_testtree)
+
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+
+print(accuracy_score(y_testtree, y_predtree))
+print(confusion_matrix(y_testtree, y_predtree))
+from sklearn.metrics import classification_report
+print('gini',classification_report(y_testtree, y_predtree))
+
+
+
+
+from sklearn import tree
+
+
+
+entropytree = DecisionTreeClassifier(criterion="entropy",
+                                  random_state=0,max_depth=3
+                                    )
+
+# Performing training
+entropytree.fit(X_traintree, y_traintree)
+y_predtree = entropytree.predict(X_testtree)
+
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+
+print(accuracy_score(y_testtree, y_predtree))
+print(confusion_matrix(y_testtree, y_predtree))
+from sklearn.metrics import classification_report
+print('entropy',classification_report(y_testtree, y_predtree))
+
+
+
+
+fig = plt.figure(figsize=(50,50))
+_ = tree.plot_tree(ginitree,
+                   feature_names=Xtree.columns,
+                   filled=True,class_names=True)
