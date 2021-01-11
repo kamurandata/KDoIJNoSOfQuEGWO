@@ -1,0 +1,290 @@
+
+import pandas as pd
+import numpy as np
+pd.set_option("display.max_columns",100)
+pd.set_option("display.max_rows",1000)
+pd.set_option("display.width",10000)
+df = pd.read_csv("C:/Users/kamur/Desktop/termdepositcase/term-deposit-marketing-2020.csv", sep=",")
+
+
+# print(df) #data has 40000 rows and 14 columns, dataframe
+# print(df.head())  #check only first six rows
+# print(df.shape)  #dimensions of data
+# print(df.info())  #columns types are ok. no missing value for columns.
+df.isnull().sum() #no missing value
+
+print(df.describe())  #check numerical data
+import matplotlib.pyplot as plt
+df.y.value_counts().plot.bar() # # of customers not subscribed is very high
+df['y'].value_counts()
+plt.legend()
+plt.title('Subscribe Distribution')
+df.y.count()
+
+
+
+# df['y'].plot(kind='hist')
+# plt.show()
+
+
+categoricalvariables=['default', 'housing', 'loan', 'y','marital','education','contact']
+binaryvariables =  ['default', 'housing', 'loan', 'y']
+numericvariables=['age','balance','duration','campaign']
+
+df['default'].value_counts().plot.bar()
+plt.title('default Distribution')
+plt.show()
+df['housing'].value_counts().plot.bar()
+plt.title('housing Distribution')
+plt.show()
+df['loan'].value_counts().plot.bar()
+plt.title('loan Distribution')
+plt.show()
+df['y'].value_counts().plot.bar()
+plt.title('y Distribution')
+plt.show()
+df['marital'].value_counts().plot.bar()
+plt.title('marital Distribution')
+plt.show()
+df['education'].value_counts().plot.bar()
+plt.title('education Distribution')
+plt.show()
+# print(df.education.value_counts())
+# print(df.job.value_counts())
+#removing unknown lines as their quantities are small
+df = df[df.education != 'unknown']
+df = df[df.job != 'unknown']
+# print(df.education.value_counts())
+
+df['contact'].value_counts().plot.bar()
+plt.title('contact Distribution')
+plt.show()
+print(df.contact.value_counts())
+
+
+
+df.drop('contact', axis=1, inplace=True) #I removed contact variable as most of values are unknown for this variable
+
+#assigning 0 and 1 for binary variables
+def binary_map(x):
+    return x.map({'yes': 1, "no": 0})
+
+
+df[binaryvariables] = df[binaryvariables].apply(binary_map)
+# print(df.head())
+
+print(df.month.value_counts())
+
+df['month'].replace({'jan': 1, "feb": 2,"mar": 3,"apr": 4,"may": 5,"jun": 6,"jul": 7,"aug": 8,"sep": 9,"oct": 10,"nov": 11,"dec": 12},inplace=True)  #replacing months with numeric values as we need to convert to numeric and they are ordinal
+
+# Creating a dummy variable for some of the categorical variables and dropping the first one.
+dummydata = pd.get_dummies(df[['marital', 'education','job']], drop_first=True)
+
+df = pd.concat([df, dummydata], axis=1)
+
+
+
+#encoding categorical variables to do chisquaretest
+from sklearn import preprocessing
+lb_en  = preprocessing.LabelEncoder()
+job = lb_en.fit_transform(df['job'])
+# print(df.job.unique())
+# print(type(df.job))
+education = lb_en.fit_transform(df['education'])
+marital = lb_en.fit_transform(df['marital'])
+
+#chisquare test between categorical variables and dependent categorical variable to check association
+from scipy.stats import chi2_contingency
+stat, p, dof, expected = chi2_contingency(pd.crosstab(education,df['y']))
+print("education",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(marital,df['y']))
+print("marital",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(df['default'],df['y']))
+print("default",stat,p)  #independent, remove this variable
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(df['job'].values,df['y']))
+print("job",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(df['housing'],df['y']))
+print("housing",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(df['loan'],df['y']))
+print("loan",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(df['day'],df['y']))
+print("day",stat,p)  #dependent
+
+stat, p, dof, expected = chi2_contingency(pd.crosstab(df['month'],df['y']))
+print("month",stat,p) #dependent
+
+#pointbiserial test between numerical variables and dependent y variable to check association
+from scipy import stats
+print('age',stats.pointbiserialr(df['age'],df['y']))  #low correlation
+print('balance',stats.pointbiserialr(df['balance'],df['y']))
+print('duration',stats.pointbiserialr(df['duration'],df['y']))
+print('campaign',stats.pointbiserialr(df['campaign'],df['y']))
+
+
+df.drop(['marital', 'education','default','age','job'], axis=1, inplace=True) #remove job,marital and education as we created dummy variables. remove default,age as they are not associated or are insignificant variables
+
+
+#correlation test between numeric variables to eliminate multicolinearity
+df.corr()[df.corr()>0.4]
+#there is correlation more than 0.4 between duration and y
+
+import seaborn as sns
+durationboxplot=sns.boxplot(x=df['y'],y=df['duration'],data=df)
+plt.show()
+
+print('durationshapiro',stats.shapiro(df.duration)) #duration values are not normal distributed. So I need to change outliers with median
+
+balanceboxplot=sns.boxplot(x=df['y'],y=df['balance'],data=df)
+plt.show()
+
+print('balanceshapiro',stats.shapiro(df.balance)) #balance values are not normal distributed. So I need to change outliers with median
+
+df1=df[df['y']==1]
+df0=df[df['y']==0]
+
+qd11 = pd.DataFrame(df1['duration']).quantile(0.25)[0]
+qd13 = pd.DataFrame(df1['duration']).quantile(0.75)[0]
+iqrd1 = qd13 - qd11 #Interquartile range
+mind1 = qd11 - (1.5*iqrd1)
+maxd1 = qd13 + (1.5*iqrd1)
+
+qd01 = pd.DataFrame(df0['duration']).quantile(0.25)[0]
+qd03 = pd.DataFrame(df0['duration']).quantile(0.75)[0]
+iqrd0 = qd03 - qd01 #Interquartile range
+mind0 = qd01 - (1.5*iqrd0)
+maxd0 = qd03 + (1.5*iqrd0)
+
+
+mediand1=df1.duration.median()
+mediand0=df0.duration.median()
+
+
+df1["duration"] = np.where(df1["duration"] <mind1, mediand1,df1['duration'])
+df1["duration"] = np.where(df1["duration"] >maxd1, mediand1,df1['duration'])
+
+df0["duration"] = np.where(df0["duration"] <mind0, mediand0,df0['duration'])
+df0["duration"] = np.where(df0["duration"] >maxd0, mediand0,df0['duration'])
+
+
+
+
+qb11 = pd.DataFrame(df1['balance']).quantile(0.25)[0]
+qb13 = pd.DataFrame(df1['balance']).quantile(0.75)[0]
+iqrb1 = qb13 - qb11 #Interquartile range
+minb1 = qb11 - (1.5*iqrb1)
+maxb1 = qb13 + (1.5*iqrb1)
+
+qb01 = pd.DataFrame(df0['balance']).quantile(0.25)[0]
+qb03 = pd.DataFrame(df0['balance']).quantile(0.75)[0]
+iqrb0 = qb03 - qb01 #Interquartile range
+minb0 = qb01 - (1.5*iqrb0)
+maxb0 = qb03 + (1.5*iqrb0)
+
+
+medianb1=df1.balance.median()
+medianb0=df0.balance.median()
+
+
+df1["balance"] = np.where(df1["balance"] <minb1, medianb1,df1['balance'])
+df1["balance"] = np.where(df1["balance"] >maxb1, medianb1,df1['balance'])
+
+df0["balance"] = np.where(df0["balance"] <minb0, medianb0,df0['balance'])
+df0["balance"] = np.where(df0["balance"] >maxb0, medianb0,df0['balance'])
+
+#merging after outlier controls
+df = pd.concat([df1, df0], axis=0)
+
+
+#seperating independent variables and dependent variable
+X = df.drop('y', axis = 1)
+y=df['y']
+
+
+#standard scaling operation for adjustment of weights of numbers in variables to our model
+from sklearn.preprocessing import StandardScaler
+sc = StandardScaler()
+
+X[['month','day','duration','balance']] = sc.fit_transform(X[['month','day','duration','balance']])
+
+
+#SMOTE operation as dependent variable is not fair distributed for term deposit
+from sklearn.model_selection import train_test_split
+from imblearn.over_sampling import SMOTE
+smote = SMOTE(random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=0)
+Xtraincolumns = X_train.columns
+smotetrainX,smotetrainy=smote.fit_sample(X_train, y_train)
+smotetrainX = pd.DataFrame(data=smotetrainX,columns=Xtraincolumns )
+smotetrainy= pd.DataFrame(data=smotetrainy,columns=['y'])
+print(y_train.value_counts())
+print(smotetrainy.y.value_counts())
+
+
+
+
+#statsmodels GLM to check coefficients of our model
+import statsmodels.api as sm
+logit_model=sm.Logit(smotetrainy,smotetrainX)
+result=logit_model.fit()
+print(result.summary2())
+
+
+from sklearn.linear_model import LogisticRegression
+model=LogisticRegression()
+model.fit(smotetrainX,smotetrainy)
+y_pred = model.predict(X_test)
+
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+
+print(accuracy_score(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+from sklearn.metrics import classification_report
+print(classification_report(y_test, y_pred))
+
+smotetrainX = smotetrainX.drop('day', axis = 1)
+smotetrainX = smotetrainX.drop('marital_married', axis = 1)
+smotetrainX = smotetrainX.drop('marital_single', axis = 1)
+X_test = X_test.drop('day', axis = 1)
+X_test = X_test.drop('marital_married', axis = 1)
+X_test = X_test.drop('marital_single', axis = 1)
+
+#SECOND MODEL
+logit_model=sm.Logit(smotetrainy,smotetrainX)
+result=logit_model.fit()
+print(result.summary2())
+
+
+from sklearn.linear_model import LogisticRegression
+model=LogisticRegression()
+model.fit(smotetrainX,smotetrainy)
+
+
+from sklearn.model_selection import cross_val_score
+accuracies = cross_val_score(estimator=model, X=smotetrainX, y=smotetrainy, cv=5)
+print(accuracies.mean())
+
+
+y_pred = model.predict(X_test)
+print(y_pred)
+print(y_test)
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+
+print(accuracy_score(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+from sklearn.metrics import classification_report
+print(classification_report(y_test, y_pred))
+
+
+from sklearn.metrics import roc_auc_score
+probs = model.predict_proba(X_test)
+probs = probs[:, 1]
+auc = roc_auc_score(y_test, probs)
+print('area under curve',auc)
